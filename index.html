@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ScrollSaw Pattern Studio</title>
+<style>
+:root{--bg:#e8edf1;--panel:#fff;--ink:#14212b;--mute:#566673;--line:#c3ced6;--acc:#f2c230;--accink:#14212b;--ok:#1f8a4c;--warn:#b07d00;--bad:#c2372f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1a22;--panel:#18262f;--ink:#e6edf2;--mute:#93a5b2;--line:#2b3d49;--ok:#4cc98a;--warn:#e8b83a;--bad:#ff7a70}}
+:root[data-theme="dark"]{--bg:#0f1a22;--panel:#18262f;--ink:#e6edf2;--mute:#93a5b2;--line:#2b3d49;--ok:#4cc98a;--warn:#e8b83a;--bad:#ff7a70}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Bahnschrift","Archivo Narrow","Segoe UI",system-ui,sans-serif}
+main{max-width:720px;margin:0 auto;padding:14px}
+h1{font-size:22px;margin:0 0 2px;letter-spacing:.2px}p.sub{margin:0 0 14px;color:var(--mute)}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+button,label.btn{font:inherit;font-weight:600;border:1.5px solid var(--ink);background:var(--panel);color:var(--ink);padding:11px 14px;border-radius:6px;cursor:pointer;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+button.pri,label.btn.pri{background:var(--acc);color:var(--accink);border-color:var(--accink)}
+button:focus-visible,input:focus-visible,label.btn:focus-within{outline:3px solid var(--acc);outline-offset:2px}
+button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+input[type=file]{position:absolute;opacity:0;width:1px;height:1px}
+.stage{margin:12px 0;background:#f5f7f8;border:1.5px solid var(--ink);border-radius:6px;overflow:hidden;position:relative;touch-action:manipulation}
+canvas{display:block;width:100%;height:auto;image-rendering:pixelated}
+.empty{padding:42px 20px;text-align:center;color:#566673}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px;margin-bottom:10px}
+.panel h2{font-size:16px;margin:0 0 8px}
+.ctl{display:grid;grid-template-columns:1fr 84px;gap:4px 10px;align-items:center;margin-bottom:8px}
+.ctl label{font-weight:600}.ctl small{grid-column:1/3;color:var(--mute)}
+input[type=range]{grid-column:1/3;width:100%;accent-color:var(--ink);min-height:32px}
+input[type=number]{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink)}
+.status{display:flex;gap:10px;align-items:center;font-weight:700;font-size:17px}
+.dot{width:16px;height:16px;border-radius:50%;background:var(--mute)}
+.g .dot{background:var(--ok)}.y .dot{background:var(--warn)}.r .dot{background:var(--bad)}
+ul{margin:8px 0 0;padding-left:18px}li{margin:3px 0}
+.legend{display:flex;gap:12px;flex-wrap:wrap;color:var(--mute);font-size:13px;margin-top:6px}
+.legend i{display:inline-block;width:11px;height:11px;margin-right:5px;border:1px solid var(--ink);vertical-align:-1px}
+#stages{font-size:13px;color:var(--mute);min-height:18px}
+#pa{display:none}@media print{@page{size:letter;margin:.5in}body{background:#fff}main{display:none}#pa{display:block}.tile{position:relative;width:7in;height:9.5in;overflow:hidden;break-after:page}.tile .sq{position:absolute;left:0;bottom:0;width:.5in;height:.5in;border:1px solid #000;font:8px sans-serif}}</style></head><body><main>
+<h1>ScrollSaw Pattern Studio</h1>
+<p class="sub">Photo to cuttable pattern. Beta: runs fully on your device.</p>
+<div class="row">
+<label class="btn pri">Take photo<input type="file" accept="image/*" capture="environment" id="cam"></label>
+<label class="btn">Choose from gallery<input type="file" accept="image/*" id="gal"></label>
+<button id="demo">Try sample</button>
+</div>
+<div class="stage" id="stage"><div class="empty" id="empty">Take or choose a photo. Bold shapes with clear light and dark areas work best.</div><canvas id="cv" hidden></canvas></div>
+<div class="row" id="tools" hidden>
+<button id="cmp" aria-pressed="false">Show original</button>
+<button id="inv" aria-pressed="false">Wood is light</button>
+<button id="mh" aria-pressed="false">Drill hole tool (tap)</button><button id="mb" aria-pressed="false">Bridge tool (drag)</button><button id="me" aria-pressed="false">Erase brush</button><button id="mw" aria-pressed="false">Add-wood brush</button><button id="undo">Undo</button><button id="redo">Redo</button>
+</div>
+<div id="stages" aria-live="polite"></div>
+<div class="legend"><span><i style="background:#14212b"></i>Wood</span><span><i style="background:#f2c230"></i>Auto bridge</span><span><i style="background:#ff7a1a"></i>Your bridge</span><span><i style="background:#2f7bd6;border-radius:50%"></i>Drill hole</span><span><i style="background:#d64541"></i>Too thin</span></div>
+<section class="panel" style="margin-top:12px"><h2>Image</h2><div class="row" style="margin-bottom:10px"><button id="rot">Rotate 90°</button><button id="flip">Flip</button><button id="crop" aria-pressed="false">Crop (drag on photo)</button><button id="rc">Reset crop</button></div><div class="ctl"><label for="br">Brightness</label><output id="brv">0</output><input type="range" id="br" min="-100" max="100" value="0"></div><div class="ctl"><label for="ct">Contrast</label><output id="ctv">0</output><input type="range" id="ct" min="-100" max="100" value="0"></div><div class="ctl"><label for="sh">Sharpness</label><output id="shv">0</output><input type="range" id="sh" min="0" max="100" value="0"></div></section>
+<section class="panel"><h2>Design</h2>
+<div class="ctl"><label for="gain">Original image gain</label><output id="gv">50%</output>
+<input type="range" id="gain" min="0" max="100" value="50">
+<small>Low: bold silhouette, fewer cuts. High: more fine detail kept.</small></div></section>
+<section class="panel"><h2>Fine tuning</h2><div class="ctl"><label for="to">Cut threshold</label><output id="tov">0</output><input type="range" id="to" min="-60" max="60" value="0"><small>Lower cuts less of the picture, higher cuts more.</small></div><div class="ctl"><label for="sm">Extra smoothing</label><output id="smv">0</output><input type="range" id="sm" min="0" max="6" value="0"></div><div class="ctl"><label for="bs">Brush size (cells)</label><output id="bsv">4</output><input type="range" id="bs" min="1" max="12" value="4"></div><div class="ctl"><label for="hd">Drill hole size (in)</label><input type="number" id="hd" value="0.0625" min="0.03" max="0.5" step="0.005"></div></section>
+<section class="panel"><h2>Material</h2>
+<div class="ctl"><label for="w">Finished width (in)</label><input type="number" id="w" value="6" min="1" max="48" step="0.5"></div>
+<div class="ctl"><label for="bm">Min bridge width (mm)</label><input type="number" id="bm" value="2" min="0.5" max="10" step="0.5"></div>
+<div class="ctl"><label for="tm">Min wood thickness (mm)</label><input type="number" id="tm" value="2.5" min="0.5" max="10" step="0.5"></div></section>
+<section class="panel" id="val"><h2>Structure check</h2><div class="status" id="st"><span class="dot"></span><span id="stt">Load a photo to begin</span></div><ul id="msgs"></ul></section>
+<div class="row"><button id="svg" class="pri" disabled>Export SVG</button><button id="pr" class="pri" disabled>Print at actual size</button><button id="pdf" class="pri" disabled>Export PDF (actual size)</button><button id="png" disabled>Export PNG</button></div><label style="display:block;margin:8px 0"><input type="checkbox" id="ann" checked> Show drill holes in PDF</label><div class="row"><button id="sv">Save project</button><button id="ld">Load saved</button><button id="pj">Download project file</button><label class="btn">Open project file<input type="file" accept=".json" id="pf"></label></div>
+<p class="sub" style="margin-top:12px;font-size:13px">Beta limits: no AI subject recognition or node editing yet, and the smooth curves are rounded off a pixel grid. Check every pattern before cutting.</p>
+</main><div id="pa"></div>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const S={W:0,H:0,gray:null,orig:null,wood:null,bridge:null,holes:[],manual:[],mb:[],rm:[],paint:[],base:null,ed:{rot:0,flip:false,crop:{x:0,y:0,w:1,h:1},br:0,ct:0,sh:0},mode:'',undo:[],redo:[],cur:'',showOrig:false,light:false,addHole:false,thin:null};
+const cv=$('cv'),ctx=cv.getContext('2d');
+const MAXW=220;
+function load(src,st){const im=new Image();im.onload=()=>{
+  const k=Math.min(1,1000/im.naturalWidth),b=document.createElement('canvas');b.width=Math.round(im.naturalWidth*k);b.height=Math.round(im.naturalHeight*k);b.getContext('2d').drawImage(im,0,0,b.width,b.height);
+  Object.assign(S,{base:b,manual:[],mb:[],rm:[],paint:[],undo:[],redo:[],ed:{rot:0,flip:false,crop:{x:0,y:0,w:1,h:1},br:0,ct:0,sh:0}});rebuild();
+  $('empty').hidden=true;cv.hidden=false;$('tools').hidden=false;if(st){S.cur=st;apply(st)}else{S.cur=snap();run()}
+};im.onerror=()=>{$('stages').textContent='That file could not be read as an image. Try a JPG or PNG.'};im.src=src}
+['cam','gal'].forEach(id=>$(id).onchange=e=>{const f=e.target.files[0];if(f)load(URL.createObjectURL(f))});
+$('demo').onclick=()=>{ // sample: letters and shapes with enclosed areas
+  const c=document.createElement('canvas');c.width=300;c.height=200;const x=c.getContext('2d');
+  x.fillStyle='#fff';x.fillRect(0,0,300,200);x.fillStyle='#000';x.font='bold 150px sans-serif';x.textAlign='center';x.fillText('BA',150,150);
+  x.beginPath();x.arc(150,40,22,0,7);x.fill();x.fillStyle='#fff';x.beginPath();x.arc(150,40,9,0,7);x.fill();
+  load(c.toDataURL())};
+// ---- helpers
+function blur(g,W,H,r){if(!r)return g;let a=g,b=new Float32Array(g.length);
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){let s=0,n=0;for(let k=-r;k<=r;k++){const xx=x+k;if(xx>=0&&xx<W){s+=a[y*W+xx];n++}}b[y*W+x]=s/n}
+  a=b;b=new Float32Array(g.length);
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){let s=0,n=0;for(let k=-r;k<=r;k++){const yy=y+k;if(yy>=0&&yy<H){s+=a[yy*W+x];n++}}b[y*W+x]=s/n}
+  return b}
+function otsu(g){const h=new Float64Array(256);g.forEach(v=>h[Math.max(0,Math.min(255,v|0))]++);
+  let tot=g.length,sum=0;for(let i=0;i<256;i++)sum+=i*h[i];let sb=0,wb=0,best=0,t=128;
+  for(let i=0;i<256;i++){wb+=h[i];if(!wb)continue;const wf=tot-wb;if(!wf)break;sb+=i*h[i];
+    const mb=sb/wb,mf=(sum-sb)/wf,v=wb*wf*(mb-mf)*(mb-mf);if(v>best){best=v;t=i}}return t}
+// 4-connected labelling of pixels equal to v. Returns {lab,sizes,touch}
+function label(m,W,H,v){const lab=new Int32Array(W*H).fill(-1),sizes=[],touch=[],st=new Int32Array(W*H);
+  for(let s=0;s<W*H;s++){if(m[s]!==v||lab[s]>=0)continue;const id=sizes.length;let n=0,t=false,sp=0;st[sp++]=s;lab[s]=id;
+    while(sp){const p=st[--sp];n++;const x=p%W,y=(p/W)|0;if(x==0||y==0||x==W-1||y==H-1)t=true;
+      if(x>0&&m[p-1]===v&&lab[p-1]<0){lab[p-1]=id;st[sp++]=p-1}
+      if(x<W-1&&m[p+1]===v&&lab[p+1]<0){lab[p+1]=id;st[sp++]=p+1}
+      if(y>0&&m[p-W]===v&&lab[p-W]<0){lab[p-W]=id;st[sp++]=p-W}
+      if(y<H-1&&m[p+W]===v&&lab[p+W]<0){lab[p+W]=id;st[sp++]=p+W}}
+    sizes.push(n);touch.push(t)}
+  return{lab,sizes,touch}}
+function pxPerIn(){return S.W/(+$('w').value||6)}
+const mmToPx=mm=>mm/25.4*pxPerIn();
+function morph(m,W,H,r,dil){ // square erode/dilate on 0/1 mask
+  const t=new Uint8Array(m.length),o=new Uint8Array(m.length);
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){let a=dil?0:1;for(let k=-r;k<=r;k++){const xx=x+k;const v=(xx<0||xx>=W)?(dil?0:0):m[y*W+xx];if(dil){if(v){a=1;break}}else if(!v){a=0;break}}t[y*W+x]=a}
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){let a=dil?0:1;for(let k=-r;k<=r;k++){const yy=y+k;const v=(yy<0||yy>=H)?0:t[yy*W+x];if(dil){if(v){a=1;break}}else if(!v){a=0;break}}o[y*W+x]=a}
+  return o}
+const tick=()=>new Promise(r=>setTimeout(r,0));
+let busy=false,again=false;
+async function run(){
+  if(busy){again=true;return}busy=true;const st=$('stages');
+  try{do{again=false;const {W,H}=S,g=+$('gain').value/100;
+    st.textContent='Reading tones and removing noise…';await tick();
+    const bl=blur(S.gray,W,H,Math.round((1-g)*5)+ +$('sm').value);let t=otsu(bl)+ +$('to').value;
+    let wood=new Uint8Array(W*H);for(let i=0;i<W*H;i++){const d=bl[i]<t;wood[i]=(S.light?!d:d)?1:0}
+    st.textContent='Simplifying details for this gain…';await tick();
+    const minA=Math.round((1-g)*(1-g)*W*H*0.008)+2;
+    for(const v of [1,0]){const L=label(wood,W,H,v);for(let i=0;i<W*H;i++){const id=L.lab[i];if(id>=0&&L.sizes[id]<minA&&!(v===1&&false))wood[i]=1-v}}
+    for(const s of S.paint)for(let dy=-s.r;dy<=s.r;dy++)for(let dx=-s.r;dx<=s.r;dx++)if(dx*dx+dy*dy<=s.r*s.r){const xx=s.x+dx,yy=s.y+dy;if(xx>=0&&yy>=0&&xx<W&&yy<H)wood[yy*W+xx]=s.v}
+    const bridge0=new Uint8Array(W*H),mbw=Math.max(1,Math.round(mmToPx(+$('bm').value)));
+    for(const b of S.mb){const n=Math.ceil(Math.hypot(b.x2-b.x1,b.y2-b.y1))*2+1,h=mbw>>1;for(let k=0;k<=n;k++){const x=Math.round(b.x1+(b.x2-b.x1)*k/n),y=Math.round(b.y1+(b.y2-b.y1)*k/n);for(let dy=-h;dy<mbw-h;dy++)for(let dx=-h;dx<mbw-h;dx++){const xx=x+dx,yy=y+dy;if(xx>=0&&yy>=0&&xx<W&&yy<H){wood[yy*W+xx]=1;bridge0[yy*W+xx]=2}}}}
+    st.textContent='Detecting islands…';await tick();
+    let L=label(wood,W,H,1);const islands0=L.sizes.length-1;
+    if(L.sizes.length===0){S.wood=wood;S.bridge=new Uint8Array(W*H);S.holes=[];S.stat={islands:0,bridges:0,comps:0};finish();continue}
+    st.textContent='Designing bridges…';await tick();
+    const bridge=bridge0,bw=Math.max(1,Math.round(mmToPx(+$('bm').value)));let nb=0;
+    for(let it=0;it<400;it++){L=label(wood,W,H,1);if(L.sizes.length<=1)break;
+      let main=0;L.sizes.forEach((s,i)=>{if(s>L.sizes[main])main=i});
+      let k=-1;L.sizes.forEach((s,i)=>{if(i!==main&&(k<0||s<L.sizes[k]))k=i});
+      const prev=new Int32Array(W*H).fill(-2),q=[];
+      for(let i=0;i<W*H;i++)if(L.lab[i]===k){prev[i]=-1;q.push(i)}
+      let hit=-1,from=-1;
+      for(let qi=0;qi<q.length&&hit<0;qi++){const p=q[qi],x=p%W,y=(p/W)|0;
+        for(const n of [x>0?p-1:-1,x<W-1?p+1:-1,y>0?p-W:-1,y<H-1?p+W:-1]){if(n<0||prev[n]!==-2)continue;
+          if(wood[n]){if(L.lab[n]!==k){hit=n;from=p;break}}else{prev[n]=p;q.push(n)}}}
+      if(hit<0)break;
+      const h=bw>>1;for(let p=from;p>=0&&prev[p]!==-2;p=prev[p]){if(L.lab[p]===k)break;const x=p%W,y=(p/W)|0;
+        for(let dy=-h;dy<bw-h;dy++)for(let dx=-h;dx<bw-h;dx++){const xx=x+dx,yy=y+dy;if(xx>=0&&yy>=0&&xx<W&&yy<H){const j=yy*W+xx;if(!wood[j]){wood[j]=1;bridge[j]=1}}}}
+      nb++}
+    st.textContent='Planning drill holes…';await tick();
+    const C=label(wood,W,H,0),dist=new Float32Array(W*H);
+    for(let i=0;i<W*H;i++)dist[i]=wood[i]?0:1e4;
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x;if(!dist[i])continue;dist[i]=Math.min(dist[i],x>0?dist[i-1]+1:1,y>0?dist[i-W]+1:1)}
+    for(let y=H-1;y>=0;y--)for(let x=W-1;x>=0;x--){const i=y*W+x;if(!dist[i])continue;dist[i]=Math.min(dist[i],x<W-1?dist[i+1]+1:1,y<H-1?dist[i+W]+1:1)}
+    const bestI=new Array(C.sizes.length).fill(-1);
+    for(let i=0;i<W*H;i++){const c=C.lab[i];if(c>=0&&!C.touch[c]&&(bestI[c]<0||dist[i]>dist[bestI[c]]))bestI[c]=i}
+    const holes=[];bestI.forEach((i,c)=>{if(i>=0&&C.sizes[c]>=4&&!S.rm.some(q=>Math.hypot(q.x-i%W,q.y-((i/W)|0))<4))holes.push({x:i%W,y:(i/W)|0,r:dist[i]})});
+    st.textContent='Validating structure…';await tick();
+    const tr=Math.max(0,Math.floor(mmToPx(+$('tm').value)/2));
+    let thin=null,thinN=0;if(tr>0){const op=morph(morph(wood,W,H,tr,false),W,H,tr,true);thin=new Uint8Array(W*H);
+      for(let i=0;i<W*H;i++)if(wood[i]&&!op[i]&&!bridge[i]){thin[i]=1;thinN++}}
+    const fin=label(wood,W,H,1);
+    Object.assign(S,{wood,bridge,holes,thin,stat:{islands:islands0,bridges:nb,comps:fin.sizes.length,thinN,total:wood.reduce((a,b)=>a+b,0),bw}});
+    finish()}while(again)}finally{busy=false;st.textContent=''}}
+function finish(){draw();validate()}
+function drawHolePx(){return Math.max(1.5,(+$('hd').value||0.0625)*pxPerIn()/2)}
+function draw(){const{W,H}=S;if(!S.wood)return;const sc=Math.max(1,Math.floor(Math.min(1200,(cv.parentElement.clientWidth||360)*(devicePixelRatio||1))/W));
+  cv.width=W*sc;cv.height=H*sc;ctx.imageSmoothingEnabled=false;
+  if(S.showOrig){ctx.drawImage(S.orig,0,0,W*sc,H*sc);return}
+  const o=document.createElement('canvas');o.width=W;o.height=H;const oc=o.getContext('2d'),id=oc.createImageData(W,H);
+  for(let i=0;i<W*H;i++){let c=[245,247,248];if(S.wood[i])c=[20,33,43];if(S.bridge[i])c=S.bridge[i]===2?[255,122,26]:[242,194,48];if(S.thin&&S.thin[i])c=[214,69,65];id.data.set([c[0],c[1],c[2],255],4*i)}
+  oc.putImageData(id,0,0);ctx.drawImage(o,0,0,W*sc,H*sc);
+  ctx.fillStyle='#2f7bd6';ctx.strokeStyle='#fff';ctx.lineWidth=1.5;
+  for(const h of [...S.holes,...S.manual]){ctx.beginPath();ctx.arc((h.x+.5)*sc,(h.y+.5)*sc,Math.max(drawHolePx()*sc,4),0,7);ctx.fill();ctx.stroke()}}
+function validate(){const s=S.stat,m=[];let lvl='g';
+  const add=(l,t)=>{m.push(t);if(l==='r'||(l==='y'&&lvl==='g'))lvl=l};
+  if(s.comps>1)add('r',`${s.comps-1} piece(s) are still disconnected from the main wood. Raise the bridge width or lower the gain.`);
+  if(s.comps===0)add('r','No wood was found. Try the “Wood is light” switch.');
+  if(s.islands)m.push(`${s.islands} island(s) found; ${s.bridges} bridge(s) added and re-checked by a connectivity test.`);
+  else if(s.comps)m.push('No islands: the pattern is a single connected piece.');
+  if(s.thinN>0)add('y',`${s.thinN} grid cells of wood are thinner than ${$('tm').value} mm (shown red). Raise the gain slider down, or make the pattern larger.`);
+  const bwMm=s.bw/pxPerIn()*25.4;if(s.bw&&bwMm<+$('bm').value*.8)add('y',`Grid is too coarse to draw bridges at ${$('bm').value} mm; they are ${bwMm.toFixed(1)} mm. Reduce the finished width.`);
+  const all=[...S.holes,...S.manual];const bad=all.filter(h=>S.bridge[h.y*S.W+h.x]).length;if(bad)add('r',`${bad} drill hole(s) sit on a bridge.`);
+  m.push(`${S.holes.length} drill hole(s) planned at the widest point of each enclosed cut area, ${S.manual.length} added by you.`);
+  m.push(`Scale: ${pxPerIn().toFixed(1)} grid cells per inch, ${(25.4/pxPerIn()).toFixed(2)} mm per cell.`);
+  $('st').className='status '+lvl;$('stt').textContent=lvl==='g'?'Connected: no loose islands':lvl==='y'?'Cuttable, with warnings':'Problem: fix before cutting';
+  $('msgs').innerHTML=m.map(t=>`<li>${t}</li>`).join('');$('pr').disabled=$('pdf').disabled=$('svg').disabled=$('png').disabled=!s.total}
+// ---- UI
+let deb;const re=()=>{clearTimeout(deb);deb=setTimeout(()=>S.gray&&run(),150)};
+$('gain').oninput=e=>{$('gv').textContent=e.target.value+'%';re()};['w','bm','tm'].forEach(i=>$(i).onchange=re);
+$('cmp').onclick=e=>{S.showOrig=!S.showOrig;e.target.setAttribute('aria-pressed',S.showOrig);e.target.textContent=S.showOrig?'Show pattern':'Show original';draw()};
+$('inv').onclick=e=>{S.light=!S.light;e.target.setAttribute('aria-pressed',S.light);run()};
+
+cv.onclick=e=>{if(!S.addHole||S.showOrig||!S.wood)return;const r=cv.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)/r.width*S.W),y=Math.floor((e.clientY-r.top)/r.height*S.H);
+  const i=S.manual.findIndex(h=>Math.hypot(h.x-x,h.y-y)<4);if(i>=0)S.manual.splice(i,1);else if(!S.wood[y*S.W+x])S.manual.push({x,y});draw();validate()};
+function dl(name,blob){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click()}
+$('svg').onclick=()=>{const{W,H}=S,w=+$('w').value,h=w*H/W;let d='';
+  for(let y=0;y<H;y++){let x=0;while(x<W){if(!S.wood[y*W+x]){x++;continue}let s=x;while(x<W&&S.wood[y*W+x])x++;d+=`M${s} ${y}h${x-s}v1h-${x-s}z`}}
+  const hs=[...S.holes,...S.manual].map(q=>`<circle cx="${q.x+.5}" cy="${q.y+.5}" r="${drawHolePx()}" fill="none" stroke="#2f7bd6" stroke-width=".4"/>`).join('');
+  dl('pattern.svg',new Blob([`<svg xmlns="http://www.w3.org/2000/svg" width="${w}in" height="${h.toFixed(3)}in" viewBox="0 0 ${W} ${H}"><g id="wood"><path d="${d}" fill="#000" fill-rule="nonzero"/></g><g id="drill-holes">${hs}</g></svg>`],{type:'image/svg+xml'}))};
+$('png').onclick=()=>{const{W,H}=S,k=6,c=document.createElement('canvas');c.width=W*k;c.height=H*k;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.fillStyle='#000';
+  for(let i=0;i<W*H;i++)if(S.wood[i])x.fillRect((i%W)*k,((i/W)|0)*k,k,k);
+  x.strokeStyle='#2f7bd6';for(const q of [...S.holes,...S.manual]){x.beginPath();x.arc((q.x+.5)*k,(q.y+.5)*k,Math.max(drawHolePx()*k,3),0,7);x.stroke()}
+  c.toBlob(b=>dl('pattern.png',b))};
+addEventListener('resize',()=>S.wood&&draw());
+// ---- undo/redo, tools, save
+function snap(){return JSON.stringify({g:$('gain').value,l:S.light,w:$('w').value,bm:$('bm').value,tm:$('tm').value,m:S.manual,b:S.mb,r:S.rm,e:S.ed,p:S.paint,to:$('to').value,sm:$('sm').value,hd:$('hd').value})}
+function apply(j){const o=JSON.parse(j);$('gain').value=o.g;$('gv').textContent=o.g+'%';S.light=o.l;$('inv').setAttribute('aria-pressed',o.l);$('w').value=o.w;$('bm').value=o.bm;$('tm').value=o.tm;S.manual=o.m;S.mb=o.b;S.rm=o.r||[];S.ed=o.e||S.ed;S.paint=o.p||[];$('to').value=o.to??0;$('sm').value=o.sm??0;$('hd').value=o.hd??0.0625;['br','ct','sh'].forEach(k=>{$(k).value=S.ed[k];$(k+'v').textContent=S.ed[k]});rebuild();run()}
+function commit(){S.undo.push(S.cur);S.cur=snap();S.redo=[];if(S.undo.length>60)S.undo.shift()}
+['gain','w','bm','tm'].forEach(i=>$(i).addEventListener('change',commit));$('inv').addEventListener('click',commit);
+$('undo').onclick=()=>{if(!S.undo.length)return;S.redo.push(S.cur);S.cur=S.undo.pop();apply(S.cur)};
+$('redo').onclick=()=>{if(!S.redo.length)return;S.undo.push(S.cur);S.cur=S.redo.pop();apply(S.cur)};
+const mode=m=>{S.mode=S.mode===m?'':m;$('mh').setAttribute('aria-pressed',S.mode==='h');$('mb').setAttribute('aria-pressed',S.mode==='b');$('crop').setAttribute('aria-pressed',S.mode==='c');$('me').setAttribute('aria-pressed',S.mode==='e');$('mw').setAttribute('aria-pressed',S.mode==='w');cv.style.touchAction=S.mode?'none':'';if(S.wood){S.showOrig=S.mode==='c';$('cmp').setAttribute('aria-pressed',S.showOrig);$('cmp').textContent=S.showOrig?'Show pattern':'Show original';draw()}};
+$('mh').onclick=()=>mode('h');$('mb').onclick=()=>mode('b');
+const pt=e=>{const r=cv.getBoundingClientRect();return{x:Math.floor((e.clientX-r.left)/r.width*S.W),y:Math.floor((e.clientY-r.top)/r.height*S.H)}};
+const segD=(p,b)=>{const dx=b.x2-b.x1,dy=b.y2-b.y1,t=Math.max(0,Math.min(1,((p.x-b.x1)*dx+(p.y-b.y1)*dy)/(dx*dx+dy*dy||1)));return Math.hypot(p.x-b.x1-t*dx,p.y-b.y1-t*dy)};
+let p0=null;
+cv.onpointerdown=e=>{if(S.mode&&S.wood&&(!S.showOrig||S.mode==='c')){p0=pt(e);cv.setPointerCapture(e.pointerId)}};
+cv.onpointerup=e=>{if(!p0)return;const p=pt(e),d=Math.hypot(p.x-p0.x,p.y-p0.y);
+ if(S.mode==='h'){const near=q=>Math.hypot(q.x-p0.x,q.y-p0.y)<4;let src=null;const i=S.manual.findIndex(near);if(i>=0)src=S.manual.splice(i,1)[0];else{const a=S.holes.find(near);if(a){src=a;S.rm.push({x:a.x,y:a.y})}}
+  const ok=!S.wood[p.y*S.W+p.x];if(src&&d>=3)S.manual.push(ok?{x:p.x,y:p.y}:{x:src.x,y:src.y});else if(!src&&ok)S.manual.push({x:p.x,y:p.y});commit();run()}
+ else if(S.mode==='e'||S.mode==='w'){commit();run()}else if(S.mode==='c'){cropApply(p0,p)}else if(S.mode==='b'){if(d<4){const i=S.mb.findIndex(b=>segD(p,b)<3);if(i>=0){S.mb.splice(i,1);commit();run()}}else{S.mb.push({x1:p0.x,y1:p0.y,x2:p.x,y2:p.y});commit();run()}}
+ p0=null};
+// ---- image editing: the untouched photo lives in S.base; every adjustment is rebuilt from it
+function rebuild(){const b=S.base,e=S.ed,c=e.crop,r=e.rot%2,tw=r?b.height:b.width,th=r?b.width:b.height;
+ const t=document.createElement('canvas');t.width=tw;t.height=th;const x=t.getContext('2d');x.translate(tw/2,th/2);x.rotate(e.rot*Math.PI/2);if(e.flip)x.scale(-1,1);x.drawImage(b,-b.width/2,-b.height/2);
+ const sx=c.x*tw,sy=c.y*th,sw=Math.max(8,c.w*tw),sh=Math.max(8,c.h*th),W=Math.min(MAXW,Math.round(sw)),H=Math.max(8,Math.round(W*sh/sw));
+ const o=document.createElement('canvas');o.width=W;o.height=H;const oc=o.getContext('2d');oc.drawImage(t,sx,sy,sw,sh,0,0,W,H);
+ const d=oc.getImageData(0,0,W,H).data,g=new Float32Array(W*H),kc=1+e.ct/100,cl=v=>Math.max(0,Math.min(255,v));
+ for(let i=0;i<W*H;i++)g[i]=cl((.299*d[4*i]+.587*d[4*i+1]+.114*d[4*i+2]-128)*kc+128+e.br*1.28);
+ let gg=g;if(e.sh>0){const bl=blur(g,W,H,1);gg=g.map((v,i)=>cl(v+(e.sh/40)*(v-bl[i])))}
+ const id=oc.createImageData(W,H);for(let i=0;i<W*H;i++)id.data.set([gg[i],gg[i],gg[i],255],4*i);oc.putImageData(id,0,0);
+ Object.assign(S,{W,H,gray:gg,orig:o,wood:null})}
+function cropApply(a,b){const{W,H}=S,x0=Math.max(0,Math.min(a.x,b.x)),y0=Math.max(0,Math.min(a.y,b.y)),x1=Math.min(W,Math.max(a.x,b.x)+1),y1=Math.min(H,Math.max(a.y,b.y)+1);
+ if(x1-x0<6||y1-y0<6)return;const c=S.ed.crop;S.ed.crop={x:c.x+x0/W*c.w,y:c.y+y0/H*c.h,w:(x1-x0)/W*c.w,h:(y1-y0)/H*c.h};geomChanged()}
+// crop, rotate and flip change the grid, so hand edits tied to the old grid are cleared (Undo restores them)
+function geomChanged(){S.paint=[];S.manual=[];S.mb=[];S.rm=[];commit();rebuild();run()}
+const fullCrop=()=>{S.ed.crop={x:0,y:0,w:1,h:1}};
+$('rot').onclick=()=>{if(!S.base)return;S.ed.rot=(S.ed.rot+1)%4;fullCrop();geomChanged()};
+$('flip').onclick=()=>{if(!S.base)return;S.ed.flip=!S.ed.flip;fullCrop();geomChanged()};
+$('rc').onclick=()=>{if(!S.base)return;fullCrop();geomChanged()};
+$('crop').onclick=()=>S.base&&mode('c');
+let deb2;['br','ct','sh'].forEach(k=>{$(k).oninput=e=>{S.ed[k]=+e.target.value;$(k+'v').textContent=e.target.value;clearTimeout(deb2);deb2=setTimeout(()=>{if(S.base){rebuild();run()}},150)};$(k).onchange=commit});
+cv.onpointermove=e=>{if(p0&&(S.mode==='e'||S.mode==='w')){const p=pt(e),rr=+$('bs').value,v=S.mode==='w'?1:0;S.paint.push({x:p.x,y:p.y,r:rr,v});for(let dy=-rr;dy<=rr;dy++)for(let dx=-rr;dx<=rr;dx++)if(dx*dx+dy*dy<=rr*rr){const xx=p.x+dx,yy=p.y+dy;if(xx>=0&&yy>=0&&xx<S.W&&yy<S.H)S.wood[yy*S.W+xx]=v}draw();return}if(!p0||S.mode!=='c')return;const p=pt(e),s=cv.width/S.W;draw();ctx.strokeStyle='#f2c230';ctx.lineWidth=3;ctx.setLineDash([8,6]);ctx.strokeRect(Math.min(p0.x,p.x)*s,Math.min(p0.y,p.y)*s,Math.abs(p.x-p0.x)*s,Math.abs(p.y-p0.y)*s);ctx.setLineDash([])};
+const proj=()=>JSON.stringify({img:S.base.toDataURL('image/jpeg',.9),s:S.cur});
+$('me').onclick=()=>mode('e');$('mw').onclick=()=>mode('w');
+['to','sm','bs'].forEach(k=>$(k).addEventListener('input',e=>$(k+'v').textContent=e.target.value));
+['to','sm'].forEach(k=>{$(k).addEventListener('input',re);$(k).addEventListener('change',commit)});$('hd').addEventListener('change',()=>{commit();draw();validate()});
+$('pr').onclick=()=>{const{W,H}=S,wi=+$('w').value,hi=wi*H/W,PW=7,PH=9.5,nx=Math.ceil(wi/PW),ny=Math.ceil(hi/PH);
+ if(!confirm(`Printing ${nx*ny} page(s) at exact size: ${wi} x ${hi.toFixed(2)} in. In the print dialog set Scale to 100% or Actual size, not Fit to page. Check that the small square on each page measures 0.5 in. Continue?`))return;
+ const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${wi}in" height="${hi.toFixed(3)}in" viewBox="0 0 ${W} ${H}"><path d="${pathD(trace())}" fill="#000" fill-rule="evenodd"/>${$('ann').checked?`<path d="${holeD()}" fill="none" stroke="#2f7bd6" stroke-width=".4"/>`:''}</svg>`;
+ let h='';for(let r=0;r<ny;r++)for(let c=0;c<nx;c++)h+=`<div class="tile"><div style="position:absolute;left:${-c*PW}in;top:${-r*PH}in">${svg}</div><div class="sq">0.5 in<br>r${r+1} c${c+1}</div></div>`;
+ $('pa').innerHTML=h;setTimeout(()=>print(),60)};
+$('sv').onclick=()=>{try{localStorage.setItem('ss-proj',proj());$('stages').textContent='Project saved on this device.'}catch(e){$('stages').textContent='Could not save: browser storage is full or blocked. Use Download project file.'}};
+$('ld').onclick=()=>{try{const o=JSON.parse(localStorage.getItem('ss-proj')||'null');if(!o){$('stages').textContent='No saved project on this device yet.';return}load(o.img,o.s)}catch(e){$('stages').textContent='The saved project could not be opened.'}};
+$('pj').onclick=()=>S.orig&&dl('project.scrollsaw.json',new Blob([proj()],{type:'application/json'}));
+$('pf').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const o=JSON.parse(r.result);load(o.img,o.s)}catch(x){$('stages').textContent='That file is not a ScrollSaw project.'}};r.readAsText(f)};
+// ---- smooth vector trace (boundary loops + corner-cutting) and PDF
+function trace(){const{W,H}=S,V=W+1,nx=new Map(),add=(a,b)=>{if(!nx.has(a))nx.set(a,[]);nx.get(a).push(b)},w=(x,y)=>x>=0&&y>=0&&x<W&&y<H&&S.wood[y*W+x];
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){if(!w(x,y))continue;if(!w(x,y-1))add(y*V+x,y*V+x+1);if(!w(x+1,y))add(y*V+x+1,(y+1)*V+x+1);if(!w(x,y+1))add((y+1)*V+x+1,(y+1)*V+x);if(!w(x-1,y))add((y+1)*V+x,y*V+x)}
+ const loops=[];for(const k0 of [...nx.keys()]){while(nx.get(k0).length){const p=[];let k=k0;while(nx.has(k)&&nx.get(k).length){p.push([k%V,(k/V)|0]);k=nx.get(k).pop()}loops.push(p)}}
+ const sm=p=>{let q=p;for(let i=0;i<2;i++){const r=[];for(let j=0;j<q.length;j++){const a=q[j],b=q[(j+1)%q.length];r.push([.75*a[0]+.25*b[0],.75*a[1]+.25*b[1]],[.25*a[0]+.75*b[0],.25*a[1]+.75*b[1]])}q=r}return q};
+ return loops.filter(l=>l.length>3).map(sm)}
+const pathD=ls=>ls.map(l=>'M'+l.map(p=>p[0].toFixed(2)+' '+p[1].toFixed(2)).join('L')+'Z').join('');
+const circ=(x,y,r,c=.5523*r)=>`M${x+r} ${y}C${x+r} ${y+c} ${x+c} ${y+r} ${x} ${y+r}C${x-c} ${y+r} ${x-r} ${y+c} ${x-r} ${y}C${x-r} ${y-c} ${x-c} ${y-r} ${x} ${y-r}C${x+c} ${y-r} ${x+r} ${y-c} ${x+r} ${y}Z`;
+const holeD=()=>[...S.holes,...S.manual].map(q=>circ(q.x+.5,q.y+.5,drawHolePx())).join('');
+$('svg').onclick=()=>{const{W,H}=S,w=+$('w').value,h=w*H/W;
+ dl('pattern.svg',new Blob([`<svg xmlns="http://www.w3.org/2000/svg" width="${w}in" height="${h.toFixed(3)}in" viewBox="0 0 ${W} ${H}"><g id="wood"><path d="${pathD(trace())}" fill="#000" fill-rule="evenodd"/></g><g id="drill-holes"><path d="${holeD()}" fill="none" stroke="#2f7bd6" stroke-width=".4"/></g></svg>`],{type:'image/svg+xml'}))};
+$('pdf').onclick=()=>{const{W,H}=S,wi=+$('w').value,hi=wi*H/W,k=wi*72/W,PW=504,PH=684,M=54,nx=Math.ceil(wi*72/PW),ny=Math.ceil(hi*72/PH);
+ if(!confirm(`This PDF is ${nx*ny} page(s) at exact size: ${wi} x ${hi.toFixed(2)} in. In the print dialog choose Actual size or 100%, never Fit to page. Check that the small square on each page measures 0.5 in. Continue?`))return;
+ const d=pathD(trace()),hd=$('ann').checked?holeD():'',objs=['<</Type/Catalog/Pages 2 0 R>>','','<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>'],kids=[];
+ for(let r=0;r<ny;r++)for(let c=0;c<nx;c++){const id=objs.length+1;kids.push(id+' 0 R');
+  let s='0.5 w 0 G ';for(const[x,y]of[[M,108],[M+PW,108],[M,738],[M+PW,738]])s+=`${x-8} ${y} m ${x+8} ${y} l ${x} ${y-8} m ${x} ${y+8} l S `;
+  s+=`${M} 12 36 36 re S BT /F1 8 Tf ${M+44} 24 Td (0.5 in square. Print at 100 percent. Tile row ${r+1} of ${ny}, column ${c+1} of ${nx}.) Tj ET `;
+  s+=`q ${M} 108 ${PW} ${PH} re W n ${k.toFixed(5)} 0 0 ${(-k).toFixed(5)} ${M-c*PW} ${738+r*PH} cm 0 g ${d} f* `;
+  if(hd)s+=`0.15 0.45 0.85 RG ${(.6/k).toFixed(3)} w ${hd} S `;s+='Q';
+  objs.push(`<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 3 0 R>>>>/Contents ${id+1} 0 R>>`,`<</Length ${s.length}>>\nstream\n${s}\nendstream`)}
+ objs[1]=`<</Type/Pages/Kids[${kids.join(' ')}]/Count ${kids.length}>>`;
+ let o='%PDF-1.4\n';const off=[];objs.forEach((t,i)=>{off[i]=o.length;o+=`${i+1} 0 obj\n${t}\nendobj\n`});
+ const xr=o.length;o+=`xref\n0 ${objs.length+1}\n0000000000 65535 f \n`+off.map(v=>String(v).padStart(10,'0')+' 00000 n \n').join('')+`trailer\n<</Size ${objs.length+1}/Root 1 0 R>>\nstartxref\n${xr}\n%%EOF`;
+ dl('pattern.pdf',new Blob([o],{type:'application/pdf'}))};
+</script></body></html>
